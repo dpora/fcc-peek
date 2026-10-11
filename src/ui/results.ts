@@ -1,8 +1,9 @@
 import { h } from '../dom';
 import { isPlausible } from '../fccId';
-import { FccIdioError, getDevice, groupExhibits } from '../fccidio';
+import { getDevice, groupExhibits } from '../fccidio';
 import type { Device, Exhibit } from '../fccidio';
 import { renderPdf } from '../pdfView';
+import { describeError } from './errors';
 
 export function renderResults(view: HTMLElement, fccId: string): void {
   view.append(h('a', { href: '#/' }, '← Scan another'), h('h1', {}, fccId));
@@ -29,18 +30,15 @@ export function renderResults(view: HTMLElement, fccId: string): void {
 }
 
 function errorContent(err: unknown, fccId: string, retry: () => void): Node[] {
-  if (err instanceof FccIdioError && err.kind === 'not-found') {
-    return [
-      document.createTextNode('Not found on fccid.io. '),
-      h('a', { href: `https://fcc.io/${encodeURIComponent(fccId)}`, target: '_blank', rel: 'noopener' }, 'Search the FCC directly'),
-    ];
-  }
-  const message = err instanceof Error ? err.message : String(err);
+  const { message, retry: canRetry, links } = describeError(err, fccId, navigator.onLine);
   const nodes: Node[] = [document.createTextNode(message + ' ')];
-  if (!(err instanceof FccIdioError) || err.kind === 'network' || err.kind === 'http') {
+  if (canRetry) {
     const button = h('button', { type: 'button' }, 'Retry');
     button.addEventListener('click', retry);
     nodes.push(button);
+  }
+  for (const link of links) {
+    nodes.push(document.createTextNode(' '), h('a', { href: link.href, target: '_blank', rel: 'noopener' }, link.label));
   }
   return nodes;
 }

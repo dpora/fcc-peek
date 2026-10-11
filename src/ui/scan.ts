@@ -59,6 +59,14 @@ export function renderScan(view: HTMLElement): () => void {
         status.textContent = `Reading label… ${Math.round(p * 100)}%`;
       });
       if (stopped) return;
+      if (!text.trim()) {
+        status.textContent = "Couldn't read any text. Try again closer, with better light, or type the ID.";
+        status.className = 'error';
+        capture.disabled = stream === null;
+        file.disabled = false;
+        file.value = '';
+        return;
+      }
       scanState.text = text;
       scanState.candidates = findCandidates(text);
       location.hash = '#/confirm';
