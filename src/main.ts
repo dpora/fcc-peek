@@ -2,6 +2,7 @@ import './style.css';
 import { h } from './dom';
 import { parseRoute } from './route';
 import { renderConfirm } from './ui/confirm';
+import { renderResults } from './ui/results';
 import { renderScan } from './ui/scan';
 
 type Cleanup = (() => void) | void;
@@ -16,7 +17,7 @@ function render(): void {
   app.replaceChildren(view);
   const route = parseRoute(location.hash);
   if (route.name === 'confirm') cleanup = renderConfirm(view);
-  else if (route.name === 'results') view.append(h('h1', {}, route.fccId));
+  else if (route.name === 'results') renderResults(view, route.fccId);
   else cleanup = renderScan(view);
   window.scrollTo(0, 0);
 }
