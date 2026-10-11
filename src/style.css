@@ -1,0 +1,54 @@
+:root {
+  --bg: #f9fafb;
+  --fg: #111827;
+  --muted: #6b7280;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --accent: #2563eb;
+  --accent-fg: #ffffff;
+  --error: #b91c1c;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f17;
+    --fg: #e5e7eb;
+    --muted: #9ca3af;
+    --card: #111827;
+    --border: #1f2937;
+    --accent: #3b82f6;
+    --error: #f87171;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 720px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.5rem; margin: 0.5rem 0 1rem; word-break: break-all; }
+h2 { font-size: 1.15rem; margin: 1.5rem 0 0.5rem; }
+h3 { font-size: 1rem; margin: 1rem 0 0.5rem; }
+a { color: var(--accent); }
+video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 4 / 3; object-fit: cover; }
+button, .button {
+  display: inline-block; font: inherit; padding: 0.7rem 1.1rem; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer;
+}
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button:disabled { opacity: 0.5; }
+.button input[type=file] { display: none; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+form.id-form { display: flex; gap: 8px; margin: 8px 0; }
+form.id-form input { flex: 1; min-width: 0; font: inherit; padding: 0.7rem; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--fg); text-transform: uppercase; }
+.status { color: var(--muted); }
+.error { color: var(--error); }
+.tag { font-size: 0.8rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+dl.summary { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
+dl.summary dt { color: var(--muted); }
+dl.summary dd { margin: 0; }
+.pages img { display: block; width: 100%; height: auto; margin: 8px 0; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
+ul.docs { padding-left: 1.2rem; }
+pre { white-space: pre-wrap; word-break: break-word; font-size: 0.85rem; }
