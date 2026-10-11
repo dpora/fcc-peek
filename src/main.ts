@@ -1,6 +1,8 @@
 import './style.css';
 import { h } from './dom';
 import { parseRoute } from './route';
+import { renderConfirm } from './ui/confirm';
+import { renderScan } from './ui/scan';
 
 type Cleanup = (() => void) | void;
 
@@ -13,9 +15,9 @@ function render(): void {
   const view = h('main');
   app.replaceChildren(view);
   const route = parseRoute(location.hash);
-  if (route.name === 'confirm') view.append(h('h1', {}, 'Confirm'));
+  if (route.name === 'confirm') cleanup = renderConfirm(view);
   else if (route.name === 'results') view.append(h('h1', {}, route.fccId));
-  else view.append(h('h1', {}, 'FCC Peek'));
+  else cleanup = renderScan(view);
   window.scrollTo(0, 0);
 }
 

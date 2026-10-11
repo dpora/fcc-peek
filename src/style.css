@@ -52,3 +52,5 @@ dl.summary dd { margin: 0; }
 .pages img { display: block; width: 100%; height: auto; margin: 8px 0; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
 ul.docs { padding-left: 1.2rem; }
 pre { white-space: pre-wrap; word-break: break-word; font-size: 0.85rem; }
+form.id-form { flex-wrap: wrap; }
+form.id-form .error { flex-basis: 100%; margin: 0; }
