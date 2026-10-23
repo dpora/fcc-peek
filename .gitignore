@@ -2,3 +2,8 @@ node_modules/
 dist/
 public/ocr/
 .wrangler/
+
+# FCC filing exhibits (third-party copyright), rebuilt by docs/ocr-research/collect/fcc_exhibits.py
+tests/fcc_exhibits/
+docs/ocr-research/bench/eng.traineddata
+__pycache__/
