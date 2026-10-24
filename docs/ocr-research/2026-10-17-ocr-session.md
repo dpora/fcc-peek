@@ -133,7 +133,7 @@ It rejects Tesseract's `JOC-QCNFA765` → `J9C-QCNFA765` (O↔9 isn't a known pa
   - Otherwise (259, "image only"): the whole first page at 150 dpi. Includes real label photos, but also drawings with illegibly small print.
 - **Degraded copy:** seeded tilt, rotation, lighting, glare, blur, noise, 45–75% scale, JPEG 45–75.
 - **Bench:**
-  - `bench/exhibits.mts` OCRs all 1000 images → `exhibits-texts.json`.
+  - `bench/exhibits.mts` OCRs every image (resumable) → `exhibits-texts.json`. Now 2000 images, see the 1000-device set below.
   - `bench/suggest.mts <cache> exhibits-texts.json` scores them → `exhibits-results.json`.
 
 ### Matcher bug found by the set (fixed in `src/fccId.ts`)
@@ -219,6 +219,75 @@ Each cell is resolved right / resolved wrong. Total = the four exhibit sets (100
 - `first` (take the top suggestion blindly) gives the most wrong answers for both engines.
 - The bare fallback added 22 right answers for Paddle and no wrong ones. For Tesseract it added one wrong: a photo read as `A3LSGHD900`, a real sibling model of `A3LSGHD900I` with the last letter dropped.
 - Damaged and image-only pages are now the weak spots. A crop/zoom option in the app (planned) is the most likely fix.
+
+## 1000-device exhibit set (2026-10-24)
+
+- **Built by:** `python -I collect/fcc_exhibits.py --target 1000 --searches 60` (resumes on the 500-device set; the first 500 are unchanged).
+  - 60 search pages gave 1,820 grantees and 3,396 candidates. The added 500 cover 250 more grantees (493 total).
+  - Skipped: 33 devices with no Label exhibit, 3 bad PDFs.
+  - 512 checked (ID in text layer), 488 image only. 2000 images with the degraded copies.
+- **Bench:** `exhibits.mts` resumed on the new 1000 images, then `suggest.mts <cache> exhibits-texts.json`. Old-half results reproduce exactly (Paddle `look1+bare` 777 / 4).
+
+Each cell is resolved right / resolved wrong.
+
+| Engine, policy | clean, checked (512) | degraded, checked (512) | clean, image only (488) | degraded, image only (488) | Total (2000) |
+|---|---|---|---|---|---|
+| Paddle, read right | 480 (94%) | 423 (83%) | 385 (79%) | 228 (47%) | 1516 |
+| Paddle, exact | 482 / 1 | 435 / 1 | 389 / 6 | 234 / 9 | 1540 / 17 |
+| Paddle, look1 | 481 / 1 | 436 / 1 | 389 / 6 | 235 / 7 | 1541 / 15 |
+| **Paddle, look1+bare** | **495 / 1** | **451 / 1** | **400 / 8** | **243 / 8** | **1589 / 18** |
+| Tesseract, read right | 405 (79%) | 216 (42%) | 226 (46%) | 62 (13%) | 909 |
+| Tesseract, look1 | 445 / 1 | 251 / 3 | 262 / 5 | 79 / 0 | 1037 / 9 |
+| Tesseract, look1+bare | 463 / 1 | 273 / 4 | 268 / 6 | 86 / 0 | 1090 / 11 |
+
+- **Paddle `look1+bare`: 79% right, 0.9% wrong.** On clean checked labels, 495/512 (97%).
+- The new half alone: 812 right / 14 wrong (old half: 777 / 4). The bare fallback adds 48 right / 3 wrong for Paddle (it was 22 / 0 on 500).
+- `look1+bare` is still the best rule for both engines.
+
+### The 18 Paddle `look1+bare` wrong answers
+
+| Cause | n | Examples | Possible fix |
+|---|---|---|---|
+| Label really prints another real ID (filing reuses a sibling's label, or a module's) | 9 | `LF57435` label says `LF57434`; `2AEFK-DL8780` label is the DL8781 typeplate; `WBQ-SWA6MINI` shows only `BZB31LTH`; `N2S-SC44KG-…` lists 6 sibling IDs | None (test-set noise); showing every ID on the label (plan step 6) covers it |
+| `Contains FCC ID:` module ID listed before the host's own | 4 | `ZPNB122009B122010` → `ZPNUNIVERSALTABSD`; `2BLPP-KDV1` → `XMR201903EG25G` | Rank candidates after `CONTAINS` last |
+| Bare fallback picks a sibling printed nearby | 3 | `FC ID: JJ4-MCTL1` (missed label) next to `FCC:JJ4-MPOD1`; `CC ID:DLAWM-5270`; `C3K2021` "change of ID from C3K1985" | Accept `FC ID`/`CC ID` as labels; then bare isn't needed |
+| Heading word misread, then 303-redirected | 1 | `FCCIDLael` → `LAEL` → `KLAEL` | Add `LAEL` to the heading-word variants |
+| 300 suggestion is a shorter sibling | 1 | `2AHPN-HSA-15U` → `2AHPN-HSA-15` (want `…-15UA-AA`) | None cheap |
+
+## Viewfinder simulation (2026-10-24)
+
+Question: should the scan screen show a box (viewfinder) and OCR only what's inside it, and what shape?
+
+- **Built by:** `collect/viewfinder.py` → `tests/fcc_exhibits/viewfinder/` (gitignored). OCR: `bench/viewfinder.mts` → `viewfinder-texts.json`, scored with `suggest.mts`.
+- **Set:** the 498 checked exhibits whose ID is horizontal (14 printed sideways skipped).
+- **Aim:** a 1080×1920 portrait frame is rendered so the "FCC ID: …" text sits in a centred box 88% of the screen wide. The text fills a random 45–85% of the box's width, at a random offset. 481 of 498 boxes hold the "FCC ID" label as well as the ID.
+- **Variants:** full frame, or the box (+5% margin) cut at 2:1, 3:1 or 4:1.
+- **Degraded:** the frame is damaged first (±6° rotation, lighting, glare, noise, blur, 45–75% scale, JPEG), then cropped.
+- **Shape of a real "FCC ID: X" line** (text layer, 168 on one line): median 10:1, 80% under 12.5:1. In the other 344 the label is on another line or missing.
+
+`look1+bare`, resolved right / wrong, out of 498:
+
+| Variant | Paddle clean | Paddle degraded | Tesseract clean | Tesseract degraded | Paddle avg ms (clean) |
+|---|---|---|---|---|---|
+| Full frame | 484 / 2 | 487 / 2 | 467 / 1 | 306 / 1 | 1033 |
+| Box 2:1 | 484 / 2 | 486 / 1 | 474 / 1 | 309 / 2 | 283 |
+| **Box 3:1** | 479 / 2 | 487 / 1 | 476 / 1 | 312 / 3 | **217** |
+| Box 4:1 | 479 / 1 | 487 / 1 | 476 / 1 | 314 / 3 | 191 |
+| Box 3:1, resized to 480 px wide | **490 / 1** | | | | |
+
+- **Accuracy: cropping is a wash** once the user has aimed this close. The full frame does as well because the ID is already big in it. The box's value is in getting the user to fill it (not measurable here) and in speed: **Paddle runs ~5× faster on the box than on the full frame.**
+- **Shape barely matters:** 2:1, 3:1 and 4:1 are within 5 of each other. Keep **3:1**: it holds a two-line "FCC ID" ⏎ ID label and tolerates ~13° of tilt.
+- **Paddle reads large, sharp text worse.** On clean crops it turns a final `1` into `-` (`2ASQI-3621-`, `2BORO-WF-1-`) or drops an `I`. Shrinking the crop before OCR fixes most of this:
+
+  | Crop width (px) | 1046 (raw) | 800 | 640 | 480 | 400 | 320 |
+  |---|---|---|---|---|---|---|
+  | read right | 441 | 456 | 460 | **465** | **465** | 461 |
+  | resolved right / wrong | 479 / 2 | 486 / 1 | 488 / 2 | **490 / 1** | 488 / 1 | 487 / 1 |
+
+  This is also why Paddle scored higher on degraded than clean frames throughout.
+- **Real photos, centred 3:1 crop:** Paddle 42 / 0 vs 54 / 0 on the full photo, Tesseract 23 vs 28. People didn't centre the ID in photos taken without a box. So never crop a chosen photo, only a live capture where the box was on screen. If the crop gives no candidate, retry on the full frame.
+
+**For the app:** a 3:1 box, 88% of the preview width, centred. Crop the capture to it (+5%), resize to ~480 px wide, then OCR. Fall back to the full frame when the crop finds nothing.
 
 ## Plan (agreed order)
 
