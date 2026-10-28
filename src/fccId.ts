@@ -7,10 +7,11 @@ export interface Candidate {
 // 4–19 chars, no leading/trailing dash.
 const ID_RE = /^[A-Z0-9][A-Z0-9-]{2,17}[A-Z0-9]$/;
 // "FCC ID", "FCCID", "FCC-ID", OCR variants of the I ("l", "1", "|"), optional "Contains",
+// "FC ID"/"CC ID" with one C dropped (only at a word start, so not "ACCIDENT"; ids need a digit),
 // not "FCC IDENTIFICATION"/"IDENTIFIER", optionally followed by "Number"/"No.".
 // Punctuation may repeat ("FCC ID. :"). Ends with whitespace, so an ID printed on
 // the line after "FCC ID:" is still reached.
-const LABEL_SOURCE = String.raw`(CONTAINS\s+)?F\s?C\s?C\s*[-_.]?\s*(?:CERTIFICATION\s+)?[I1L|]\s?D(?!ENTIF)[\s:;.#]*(?:(?:NUMBER|NUM|NO)\b[\s:;.#]*)?`;
+const LABEL_SOURCE = String.raw`(CONTAINS\s+)?(?:F\s?C\s?C|(?<![A-Z0-9])([FC]\s?C))\s*[-_.]?\s*(?:CERTIFICATION\s+)?[I1L|]\s?D(?!ENTIF)[\s:;.#]*(?:(?:NUMBER|NUM|NO)\b[\s:;.#]*)?`;
 // The next field glued to the ID: "2A6JBMI01/IC:28450-MI01", "APISB595MK2SUBIC:6132A-SB595MK2SUB".
 const GLUED_FIELD_RE = /(\/|IC:).*$/i;
 // First token after the label, and optionally a second token on the same line.
@@ -19,7 +20,7 @@ const TOKEN_RE = /^(\S+)(?:[ \t]+(\S+))?/;
 const STOP_WORDS = new Set(['IC', 'MODEL', 'CAN', 'ICES', 'SN', 'S/N', 'CMIIT', 'PN', 'P/N']);
 // Heading words printed after "FCC ID" ("FCC ID Label and Location"), incl. OCR variants of LABEL.
 // Only applied to tokens without digits; real all-letter IDs (e.g. RYYEYSHCN) are rare.
-const HEADING_RE = /^(LA[BH]E[LI]|LEBEL|LOCATION|STATEMENT|NUMBER|SIZE|SERIAL|ONLY|WILL)/;
+const HEADING_RE = /^(LA[BH]?E[LI]|LEBEL|LOCATION|STATEMENT|NUMBER|SIZE|SERIAL|ONLY|WILL)/;
 
 export function normalize(id: string): string {
   return id
@@ -71,7 +72,8 @@ export function findCandidates(text: string): Candidate[] {
       id += normalize(next);
       consumed = tok[0].length;
     }
-    if (!/\d/.test(id) && HEADING_RE.test(id)) continue;
+    // A shortened label is weaker evidence, so all-letter tokens after it are headings.
+    if (!/\d/.test(id) && (m[2] || HEADING_RE.test(id))) continue;
     id = fixGrantee(id);
     if (!isPlausible(id) || seen.has(id)) continue;
     seen.add(id);

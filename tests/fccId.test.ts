@@ -61,6 +61,11 @@ describe('findCandidates', () => {
     expect(ids('FCC ID Location')).toEqual([]);
   });
 
+  it('skips LABEL misread with the B dropped', () => {
+    expect(ids('FCCIDLael')).toEqual([]);
+    expect(ids('FCC ID Lael and Location')).toEqual([]);
+  });
+
   it('does not read "FCC IDENTIFICATION" or "FCC IDENTIFIER" as a label', () => {
     expect(ids('FCC IDENTIFICATION NUMBER')).toEqual([]);
     expect(ids('FCC Identifier: BCG-E3175A')).toEqual([]);
@@ -112,6 +117,24 @@ describe('findCandidates', () => {
     expect(ids('FCC lD: 2AEV4-01')).toEqual(['2AEV4-01']);
     expect(ids('FCC 1D: 2AEV4-01')).toEqual(['2AEV4-01']);
     expect(ids('FCC |D: 2AEV4-01')).toEqual(['2AEV4-01']);
+  });
+
+  it('tolerates OCR dropping one C of "FCC"', () => {
+    expect(ids('ICID:5689A-MCTL1\nFC ID: JJ4-MCTL1')).toEqual(['JJ4-MCTL1']);
+    expect(ids('FCID : JJ4-MCTL1')).toEqual(['JJ4-MCTL1']);
+    expect(ids('CC ID:BCG-E3175A')).toEqual(['BCG-E3175A']);
+  });
+
+  it('does not read "CCID" or "FCID" inside a word as a label', () => {
+    expect(ids('ACCIDENTAL DAMAGE')).toEqual([]);
+    expect(ids('Accidental: ABCD1234')).toEqual([]);
+    expect(ids('PFCID BCG-E3175A')).toEqual([]);
+  });
+
+  it('needs a digit in ids after "FC ID" or "CC ID"', () => {
+    expect(ids('CC 1D del LOoCation\nFCC ID: 2AB9SM32')).toEqual(['2AB9SM32']);
+    expect(ids('FC ID LABE')).toEqual([]);
+    expect(ids('FCC ID: RYYEYSHCN')).toEqual(['RYYEYSHCN']);
   });
 
   it('joins a grantee code split from the product code by a space', () => {
