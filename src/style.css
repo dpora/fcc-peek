@@ -32,7 +32,14 @@ h1 { font-size: 1.5rem; margin: 0.5rem 0 1rem; word-break: break-all; }
 h2 { font-size: 1.15rem; margin: 1.5rem 0 0.5rem; }
 h3 { font-size: 1rem; margin: 1rem 0 0.5rem; }
 a { color: var(--accent); }
-video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 4 / 3; object-fit: cover; }
+video, .viewfinder canvas { display: block; width: 100%; border-radius: 12px; background: #000; aspect-ratio: 4 / 3; object-fit: cover; }
+.viewfinder { position: relative; overflow: hidden; border-radius: 12px; }
+.viewfinder [hidden] { display: none; }
+/* Centred 3:1 box at 88% width (src/viewfinder.ts); the shadow dims everything outside it. */
+.viewfinder .box {
+  position: absolute; left: 6%; width: 88%; top: 50%; transform: translateY(-50%); aspect-ratio: 3 / 1;
+  border: 2px solid #fff; border-radius: 8px; box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.45); pointer-events: none;
+}
 button, .button {
   display: inline-block; font: inherit; padding: 0.7rem 1.1rem; border-radius: 10px;
   border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer;

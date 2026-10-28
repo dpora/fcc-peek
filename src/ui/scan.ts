@@ -2,6 +2,7 @@ import { h } from '../dom';
 import { findCandidates } from '../fccId';
 import { recognize } from '../ocr';
 import { scanState } from '../store';
+import { boxInFrame } from '../viewfinder';
 import { idForm } from './idForm';
 
 export function renderScan(view: HTMLElement): () => void {
@@ -10,14 +11,17 @@ export function renderScan(view: HTMLElement): () => void {
 
   const video = h('video', { playsinline: '', muted: '', autoplay: '' }) as HTMLVideoElement;
   video.muted = true; // iOS only autoplays inline video when the muted property is set
+  // The captured frame, shown in place of the live video while it is read.
+  const still = h('canvas', { hidden: '' }) as HTMLCanvasElement;
+  const frame = h('div', { class: 'viewfinder' }, video, still, h('div', { class: 'box' }));
   const capture = h('button', { class: 'primary', disabled: '' }, 'Capture') as HTMLButtonElement;
   const file = h('input', { type: 'file', accept: 'image/*', capture: 'environment' }) as HTMLInputElement;
   const pick = h('label', { class: 'button' }, 'Choose photo', file);
-  const status = h('p', { class: 'status' }, 'Point the camera at the label with "FCC ID".');
+  const status = h('p', { class: 'status' }, 'Fit the "FCC ID" line inside the box.');
 
   view.append(
     h('h1', {}, 'FCC Peek'),
-    video,
+    frame,
     h('div', { class: 'row' }, capture, pick),
     status,
     h('h2', {}, 'Or type the FCC ID'),
@@ -25,7 +29,7 @@ export function renderScan(view: HTMLElement): () => void {
   );
 
   function cameraUnavailable(): void {
-    video.hidden = true;
+    frame.hidden = true;
     capture.hidden = true;
     status.textContent = 'Camera unavailable here. Choose a photo or type the ID.';
   }
@@ -50,6 +54,21 @@ export function renderScan(view: HTMLElement): () => void {
     cameraUnavailable();
   }
 
+  function showLive(): void {
+    still.hidden = true;
+    video.hidden = false;
+    if (stream) void video.play().catch(() => {});
+  }
+
+  function fail(message: string): void {
+    status.textContent = message;
+    status.className = 'error';
+    showLive();
+    capture.disabled = stream === null;
+    file.disabled = false;
+    file.value = '';
+  }
+
   async function process(image: Blob): Promise<void> {
     capture.disabled = true;
     file.disabled = true;
@@ -60,11 +79,7 @@ export function renderScan(view: HTMLElement): () => void {
       });
       if (stopped) return;
       if (!text.trim()) {
-        status.textContent = "Couldn't read any text. Try again closer, with better light, or type the ID.";
-        status.className = 'error';
-        capture.disabled = stream === null;
-        file.disabled = false;
-        file.value = '';
+        fail("Couldn't read any text. Try again closer, with better light, or type the ID.");
         return;
       }
       scanState.text = text;
@@ -72,20 +87,27 @@ export function renderScan(view: HTMLElement): () => void {
       location.hash = '#/confirm';
     } catch (err) {
       if (stopped) return;
-      status.textContent = `OCR failed: ${err instanceof Error ? err.message : String(err)}`;
-      status.className = 'error';
-      capture.disabled = stream === null;
-      file.disabled = false;
+      fail(`OCR failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   capture.addEventListener('click', () => {
     if (!video.videoWidth) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')!.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => {
+    still.width = video.videoWidth;
+    still.height = video.videoHeight;
+    still.getContext('2d')!.drawImage(video, 0, 0);
+    // Measure before swapping: the still takes the video's place at the same size.
+    const box = boxInFrame(video.clientWidth, video.clientHeight, still.width, still.height);
+    video.pause();
+    video.hidden = true;
+    still.hidden = false;
+
+    // OCR only what is under the box. Chosen photos are never cropped: they were taken without it.
+    const crop = document.createElement('canvas');
+    crop.width = box.width;
+    crop.height = box.height;
+    crop.getContext('2d')!.drawImage(still, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
+    crop.toBlob((blob) => {
       if (blob) void process(blob);
     }, 'image/png');
   });
