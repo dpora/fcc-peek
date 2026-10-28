@@ -2,6 +2,8 @@
 // Sizes chosen by the viewfinder benchmark (docs/ocr-research, 2026-10-24).
 export const BOX_WIDTH = 0.88;
 export const BOX_ASPECT = 3;
+// PaddleOCR misreads large, sharp text (a final "1" as "-"); a crop ~480 px wide read best.
+export const OCR_WIDTH = 480;
 // Extra margin cut around the box, as a fraction of the box width, on each side.
 const MARGIN = 0.05;
 

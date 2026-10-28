@@ -1,34 +1,31 @@
-import { createWorker, OEM } from 'tesseract.js';
-import type { Worker } from 'tesseract.js';
+import Ocr from '@gutenye/ocr-browser';
 
 const assets = (path: string) => new URL(`${import.meta.env.BASE_URL}ocr/${path}`, location.href).href;
 
-let workerPromise: Promise<Worker> | null = null;
-let progressHandler: ((fraction: number) => void) | null = null;
+let ocrPromise: Promise<Ocr> | null = null;
 
-function getWorker(): Promise<Worker> {
-  workerPromise ??= createWorker('eng', OEM.LSTM_ONLY, {
-    workerPath: assets('worker.min.js'),
-    corePath: assets('core'),
-    langPath: assets('lang'),
-    workerBlobURL: false,
-    logger: (m) => {
-      if (m.status === 'recognizing text') progressHandler?.(m.progress);
+function getOcr(): Promise<Ocr> {
+  ocrPromise ??= Ocr.create({
+    models: {
+      detectionPath: assets('models/ch_PP-OCRv4_det_infer.onnx'),
+      recognitionPath: assets('models/ch_PP-OCRv4_rec_infer.onnx'),
+      dictionaryPath: assets('models/ppocr_keys_v1.txt'),
     },
   });
-  return workerPromise;
+  return ocrPromise;
 }
 
-export async function recognize(image: Blob, onProgress?: (fraction: number) => void): Promise<string> {
-  progressHandler = onProgress ?? null;
+// PaddleOCR (PP-OCRv4), one line of text per detected line, as in the benchmark.
+export async function recognize(image: Blob): Promise<string> {
+  const url = URL.createObjectURL(image);
   try {
-    const worker = await getWorker();
-    const { data } = await worker.recognize(image);
-    return data.text;
+    const ocr = await getOcr();
+    const { texts } = await ocr.detect(url);
+    return texts.map((line) => line.text).join('\n');
   } catch (err) {
-    workerPromise = null;
+    ocrPromise = null;
     throw err;
   } finally {
-    progressHandler = null;
+    URL.revokeObjectURL(url);
   }
 }

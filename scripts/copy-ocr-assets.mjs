@@ -1,6 +1,6 @@
-// Copies Tesseract.js worker, WASM core and English data into public/ocr so the
-// app serves them from its own origin instead of a third-party CDN.
-import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+// Copies the PaddleOCR (PP-OCRv4) models into public/ocr so the app serves them from its
+// own origin instead of a third-party CDN. Vite bundles the ONNX Runtime WASM file itself.
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,25 +8,16 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const nm = join(root, 'node_modules');
 const out = join(root, 'public', 'ocr');
 
-function find(...paths) {
-  const hit = paths.find((p) => existsSync(p));
-  if (!hit) throw new Error(`copy-ocr-assets: missing ${paths.join(' | ')}`);
-  return hit;
+function copy(from, to) {
+  if (!existsSync(from)) throw new Error(`copy-ocr-assets: missing ${from}`);
+  cpSync(from, to);
 }
 
-mkdirSync(join(out, 'core'), { recursive: true });
-mkdirSync(join(out, 'lang'), { recursive: true });
+mkdirSync(join(out, 'models'), { recursive: true });
 
-cpSync(find(join(nm, 'tesseract.js', 'dist', 'worker.min.js')), join(out, 'worker.min.js'));
+// Detection, recognition and the recognition dictionary; the angle classifier is unused.
+for (const f of ['ch_PP-OCRv4_det_infer.onnx', 'ch_PP-OCRv4_rec_infer.onnx', 'ppocr_keys_v1.txt']) {
+  copy(join(nm, '@gutenye', 'ocr-models', 'assets', f), join(out, 'models', f));
+}
 
-const coreDir = find(join(nm, 'tesseract.js', 'node_modules', 'tesseract.js-core'), join(nm, 'tesseract.js-core'));
-const cores = readdirSync(coreDir).filter((f) => /^tesseract-core.*\.wasm\.js$/.test(f));
-if (cores.length < 4) throw new Error(`copy-ocr-assets: expected 4 core files in ${coreDir}, found ${cores.length}`);
-for (const f of cores) cpSync(join(coreDir, f), join(out, 'core', f));
-
-cpSync(
-  find(join(nm, '@tesseract.js-data', 'eng', '4.0.0_best_int', 'eng.traineddata.gz')),
-  join(out, 'lang', 'eng.traineddata.gz'),
-);
-
-console.log(`copy-ocr-assets: worker, ${cores.length} core files, eng.traineddata.gz -> public/ocr`);
+console.log('copy-ocr-assets: PP-OCRv4 det/rec models and dictionary -> public/ocr');

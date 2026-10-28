@@ -3,8 +3,9 @@
 Photograph a device's FCC label, read the FCC ID on-device, and view the
 device's FCC internal photos (fetched directly from fccid.io).
 
-Everything runs in the browser: OCR (Tesseract.js, self-hosted assets) and PDF
-rendering (pdf.js). No backend.
+Everything runs in the browser: OCR (PaddleOCR PP-OCRv4 on ONNX Runtime Web,
+self-hosted models and WASM, about 25 MB on first scan) and PDF rendering
+(pdf.js). No backend.
 
 ## Develop
 

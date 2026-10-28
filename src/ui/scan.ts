@@ -1,8 +1,7 @@
 import { h } from '../dom';
 import { findCandidates } from '../fccId';
-import { recognize } from '../ocr';
 import { scanState } from '../store';
-import { boxInFrame } from '../viewfinder';
+import { boxInFrame, OCR_WIDTH } from '../viewfinder';
 import { idForm } from './idForm';
 
 export function renderScan(view: HTMLElement): () => void {
@@ -72,11 +71,12 @@ export function renderScan(view: HTMLElement): () => void {
   async function process(image: Blob): Promise<void> {
     capture.disabled = true;
     file.disabled = true;
-    status.textContent = 'Reading label… (first run downloads the OCR model)';
+    status.className = 'status';
+    status.textContent = 'Reading label… (first scan downloads the OCR model, about 25 MB)';
     try {
-      const text = await recognize(image, (p) => {
-        status.textContent = `Reading label… ${Math.round(p * 100)}%`;
-      });
+      // Loaded on first scan: the OCR code is ~11 MB (ONNX Runtime and OpenCV).
+      const { recognize } = await import('../ocr');
+      const text = await recognize(image);
       if (stopped) return;
       if (!text.trim()) {
         fail("Couldn't read any text. Try again closer, with better light, or type the ID.");
@@ -102,11 +102,15 @@ export function renderScan(view: HTMLElement): () => void {
     video.hidden = true;
     still.hidden = false;
 
-    // OCR only what is under the box. Chosen photos are never cropped: they were taken without it.
+    // OCR only what is under the box, shrunk to OCR_WIDTH. Chosen photos are never cropped:
+    // they were taken without the box.
+    const scale = Math.min(1, OCR_WIDTH / box.width);
     const crop = document.createElement('canvas');
-    crop.width = box.width;
-    crop.height = box.height;
-    crop.getContext('2d')!.drawImage(still, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
+    crop.width = Math.round(box.width * scale);
+    crop.height = Math.round(box.height * scale);
+    const ctx = crop.getContext('2d')!;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(still, box.x, box.y, box.width, box.height, 0, 0, crop.width, crop.height);
     crop.toBlob((blob) => {
       if (blob) void process(blob);
     }, 'image/png');
