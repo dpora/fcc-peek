@@ -1,6 +1,7 @@
 node_modules/
 dist/
 public/ocr/
+public/pdfjs/
 .wrangler/
 
 # FCC filing exhibits (third-party copyright), rebuilt by docs/ocr-research/collect/fcc_exhibits.py

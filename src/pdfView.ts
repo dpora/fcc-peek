@@ -6,8 +6,18 @@ import { h } from './dom';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
+// Copied into public/pdfjs by scripts/copy-ocr-assets.mjs. Absolute, because the worker
+// resolves them. Without wasmUrl pdf.js drops JPEG 2000 images and draws pages without photos.
+const assets = new URL(`${import.meta.env.BASE_URL}pdfjs/`, document.baseURI).href;
+
 export async function renderPdf(url: string, container: HTMLElement): Promise<void> {
-  const task = getDocument({ url, disableRange: true, disableStream: true });
+  const task = getDocument({
+    url,
+    disableRange: true,
+    disableStream: true,
+    wasmUrl: `${assets}wasm/`,
+    standardFontDataUrl: `${assets}standard_fonts/`,
+  });
   try {
     const pdf = await task.promise;
     const cssWidth = Math.min(container.clientWidth || 800, 1200);
