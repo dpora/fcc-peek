@@ -1,5 +1,7 @@
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Legacy build: the modern one calls Promise.try, Map#getOrInsertComputed and Math.sumPrecise
+// unpolyfilled, and on phones without them getDocument() hangs forever instead of rejecting.
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { h } from './dom';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
