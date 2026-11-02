@@ -1,8 +1,11 @@
 import { h } from '../dom';
-import { findCandidates } from '../fccId';
+import { findBareCandidates, findCandidates } from '../fccId';
+import { lookup } from '../fccidio';
+import { resolveScan } from '../resolve';
+import { resultsHash } from '../route';
 import { scanState } from '../store';
 import { boxInFrame, OCR_WIDTH } from '../viewfinder';
-import { idForm } from './idForm';
+import { describeError } from './errors';
 
 export function renderScan(view: HTMLElement): () => void {
   let stopped = false;
@@ -18,19 +21,12 @@ export function renderScan(view: HTMLElement): () => void {
   const pick = h('label', { class: 'button' }, 'Choose photo', file);
   const status = h('p', { class: 'status' }, 'Fit the "FCC ID" line inside the box.');
 
-  view.append(
-    h('h1', {}, 'FCC Peek'),
-    frame,
-    h('div', { class: 'row' }, capture, pick),
-    status,
-    h('h2', {}, 'Or type the FCC ID'),
-    idForm(''),
-  );
+  view.append(h('h1', {}, 'FCC Peek'), frame, status, h('div', { class: 'row end' }, pick, capture));
 
   function cameraUnavailable(): void {
     frame.hidden = true;
     capture.hidden = true;
-    status.textContent = 'Camera unavailable here. Choose a photo or type the ID.';
+    status.textContent = 'Camera unavailable here. Choose a photo of the label.';
   }
 
   if (navigator.mediaDevices?.getUserMedia) {
@@ -79,12 +75,24 @@ export function renderScan(view: HTMLElement): () => void {
       const text = await recognize(image);
       if (stopped) return;
       if (!text.trim()) {
-        fail("Couldn't read any text. Try again closer, with better light, or type the ID.");
+        fail("Couldn't read any text. Try again closer, with better light.");
         return;
       }
+      const labelled = findCandidates(text).map((c) => c.id);
+      status.textContent = labelled.length ? `Read ${labelled[0]}. Checking fccid.io…` : 'Checking fccid.io…';
+      let resolution;
+      try {
+        resolution = await resolveScan(labelled, findBareCandidates(text), (id) => lookup(id));
+      } catch (err) {
+        if (stopped) return;
+        fail(describeError(err, labelled[0] ?? '', navigator.onLine).message);
+        return;
+      }
+      if (stopped) return;
       scanState.text = text;
-      scanState.candidates = findCandidates(text);
-      location.hash = '#/confirm';
+      scanState.resolution = resolution;
+      if (resolution.kind === 'found') location.hash = resultsHash(resolution.device.fccId);
+      else location.hash = resolution.read ? resultsHash(resolution.read) : '#/not-found';
     } catch (err) {
       if (stopped) return;
       fail(`OCR failed: ${err instanceof Error ? err.message : String(err)}`);

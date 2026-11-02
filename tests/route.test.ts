@@ -8,8 +8,12 @@ describe('parseRoute', () => {
     expect(parseRoute('#/nonsense')).toEqual({ name: 'scan' });
   });
 
-  it('parses confirm', () => {
-    expect(parseRoute('#/confirm')).toEqual({ name: 'confirm' });
+  it('parses not-found', () => {
+    expect(parseRoute('#/not-found')).toEqual({ name: 'notfound' });
+  });
+
+  it('no longer has a confirm screen', () => {
+    expect(parseRoute('#/confirm')).toEqual({ name: 'scan' });
   });
 
   it('parses results and normalizes the id', () => {

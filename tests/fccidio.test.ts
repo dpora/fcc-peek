@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FccIdioError, getDevice, groupExhibits, parseDevicePage } from '../src/fccidio';
+import { FccIdioError, groupExhibits, lookup, parseDevicePage } from '../src/fccidio';
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, 'fixtures', name), 'utf8');
 const TODAY = '2026-10-11';
@@ -97,29 +97,77 @@ describe('groupExhibits', () => {
   });
 });
 
-describe('getDevice', () => {
-  it('fetches https://fccid.io/<id> and parses it', async () => {
+function respond(body: string, status: number, redirected = false): Response {
+  const res = new Response(body, { status });
+  Object.defineProperty(res, 'redirected', { value: redirected });
+  return res;
+}
+
+describe('lookup', () => {
+  it('fetches https://fccid.io/<id> and returns the device', async () => {
     const urls: string[] = [];
-    const device = await getDevice('BCG-E3175A', async (url) => {
+    const result = await lookup('BCG-E3175A', async (url) => {
       urls.push(url);
-      return new Response(fixture('bcg-e3175a.html'), { status: 200 });
+      return respond(fixture('bcg-e3175a.html'), 200);
     });
     expect(urls).toEqual(['https://fccid.io/BCG-E3175A']);
-    expect(device.fccId).toBe('BCG-E3175A');
+    expect(result.kind).toBe('device');
+    if (result.kind === 'device') {
+      expect(result.device.fccId).toBe('BCG-E3175A');
+      expect(result.redirected).toBe(false);
+    }
   });
 
-  it('maps 404 to not-found', async () => {
-    const p = getDevice('ZZZ-NOTAREALID9', async () => new Response(fixture('not-found.html'), { status: 404 }));
-    expect(await asyncKindOf(p)).toBe('not-found');
+  it('reports when fccid.io redirected to another ID', async () => {
+    const result = await lookup('BCG-E3I75A', async () => respond(fixture('bcg-e3175a.html'), 200, true));
+    expect(result).toMatchObject({ kind: 'device', redirected: true });
+  });
+
+  it('reads the Possible Matches table from a 300', async () => {
+    const result = await lookup('2AJGM-UVSR', async () => respond(fixture('similar-2ajgm-uvsr.html'), 300));
+    expect(result.kind).toBe('similar');
+    if (result.kind === 'similar') {
+      expect(result.suggestions.map((s) => s.id)).toEqual(['2AJGMUV-5R', expect.any(String)]);
+      expect(result.suggestions[0]).toEqual({
+        id: '2AJGMUV-5R',
+        match: 'Similar FCC ID',
+        applicant: 'PO FUNG ELECTRONIC(HK) INTERNATIOANL GROUP COMPANY',
+        description: 'Walkie Talkie',
+        date: '2020-11-03',
+      });
+    }
+  });
+
+  it('treats a 300 search-results page as not found, without suggestions', async () => {
+    const result = await lookup('188', async () => respond(fixture('search-188.html'), 300));
+    expect(result).toEqual({ kind: 'notfound' });
+  });
+
+  it('reads the grantee panel from a 404', async () => {
+    const result = await lookup('I88RLG607N', async () => respond(fixture('notfound-grantee-i88rlg607n.html'), 404));
+    expect(result).toEqual({
+      kind: 'notfound',
+      grantee: { code: 'I88', name: 'ZyXEL Communications Corporation' },
+    });
+  });
+
+  it('returns a bare not found when the grantee is unknown', async () => {
+    const result = await lookup('188RLG607N', async () => respond(fixture('notfound-no-grantee.html'), 404));
+    expect(result).toEqual({ kind: 'notfound' });
+  });
+
+  it('treats a 200 that is not a device page (a grantee list) as not found', async () => {
+    const result = await lookup('I88', async () => respond('<html><h1>ZyXEL FCC ID Applications</h1></html>', 200));
+    expect(result).toEqual({ kind: 'notfound' });
   });
 
   it('maps other HTTP errors to http', async () => {
-    const p = getDevice('BCG-E3175A', async () => new Response('oops', { status: 503 }));
+    const p = lookup('BCG-E3175A', async () => respond('oops', 503));
     expect(await asyncKindOf(p)).toBe('http');
   });
 
   it('maps a thrown fetch to network', async () => {
-    const p = getDevice('BCG-E3175A', async () => {
+    const p = lookup('BCG-E3175A', async () => {
       throw new TypeError('Failed to fetch');
     });
     expect(await asyncKindOf(p)).toBe('network');

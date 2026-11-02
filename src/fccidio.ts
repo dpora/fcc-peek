@@ -111,19 +111,86 @@ export function parseDevicePage(html: string, today: string): Device {
   return device;
 }
 
-export async function getDevice(
+export interface Suggestion {
+  id: string;
+  match: string;
+  applicant?: string;
+  description?: string;
+  date?: string;
+}
+
+export interface Grantee {
+  code: string;
+  name: string;
+}
+
+// redirected: fccid.io answered with a 303 to a different ID (it corrects some misreads itself,
+// but also sends unrelated words to unrelated devices: LABEL -> EA46GJLABEL).
+export type Lookup =
+  | { kind: 'device'; device: Device; redirected: boolean }
+  | { kind: 'similar'; suggestions: Suggestion[] }
+  | { kind: 'notfound'; grantee?: Grantee };
+
+// 300 "Possible Matches": rows of FCC ID (link) / Match / Applicant / Description / Date.
+function parseSuggestions(doc: Document): Suggestion[] {
+  const out: Suggestion[] = [];
+  for (const tr of doc.querySelectorAll('table.table tbody tr')) {
+    const cells = [...tr.querySelectorAll('td')].map((td) => text(td));
+    const id = text(tr.querySelector('td a'));
+    if (!id) continue;
+    const s: Suggestion = { id, match: cells[1] ?? '' };
+    if (cells[2]) s.applicant = cells[2];
+    if (cells[3]) s.description = cells[3];
+    if (cells[4]) s.date = cells[4];
+    out.push(s);
+  }
+  return out;
+}
+
+// 404 pages carry a "Grantee Code Found" panel when the first part of the ID is a real grantee:
+// "The grantee code I88 belongs to ZyXEL Communications Corporation in Hsinchu N/A Taiwan."
+function parseGrantee(doc: Document): Grantee | undefined {
+  const h3 = [...doc.querySelectorAll('h3.panel-title')].find((el) => text(el) === 'Grantee Code Found');
+  const p = h3?.closest('.panel')?.querySelector('.panel-body p');
+  const code = text(p?.querySelector('a'));
+  const name = /belongs to (.+) in .*$/.exec(text(p))?.[1];
+  return code && name ? { code, name } : undefined;
+}
+
+export function parseLookupPage(status: number, html: string, today: string, redirected: boolean): Lookup {
+  if (status === 200) {
+    try {
+      return { kind: 'device', device: parseDevicePage(html, today), redirected };
+    } catch (err) {
+      // A bare grantee code (or a search) also returns 200.
+      if (err instanceof FccIdioError && err.kind === 'not-found') return { kind: 'notfound' };
+      throw err;
+    }
+  }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  if (status === 300) {
+    // The other 300 page, "FCC ID Search Matches", lists product-code hits, not look-alikes.
+    if (!/Possible Matches/.test(doc.title)) return { kind: 'notfound' };
+    return { kind: 'similar', suggestions: parseSuggestions(doc) };
+  }
+  if (status === 404) {
+    const grantee = parseGrantee(doc);
+    return grantee ? { kind: 'notfound', grantee } : { kind: 'notfound' };
+  }
+  throw new FccIdioError('http', `fccid.io returned HTTP ${status}.`);
+}
+
+export async function lookup(
   fccId: string,
   fetchFn: (url: string) => Promise<Response> = (url) => fetch(url),
-): Promise<Device> {
+): Promise<Lookup> {
   let res: Response;
   try {
     res = await fetchFn(`${BASE}/${encodeURIComponent(fccId)}`);
   } catch {
     throw new FccIdioError('network', "Couldn't reach fccid.io. Check your connection.");
   }
-  if (res.status === 404) throw new FccIdioError('not-found', 'fccid.io has no page for this FCC ID.');
-  if (!res.ok) throw new FccIdioError('http', `fccid.io returned HTTP ${res.status}.`);
-  return parseDevicePage(await res.text(), todayIso());
+  return parseLookupPage(res.status, await res.text(), todayIso(), res.redirected);
 }
 
 export function groupExhibits(device: Device): { internal: Exhibit[]; other: Exhibit[] } {

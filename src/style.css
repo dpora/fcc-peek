@@ -21,6 +21,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--bg);
@@ -61,3 +62,13 @@ ul.docs { padding-left: 1.2rem; }
 pre { white-space: pre-wrap; word-break: break-word; font-size: 0.85rem; }
 form.id-form { flex-wrap: wrap; }
 form.id-form .error { flex-basis: 100%; margin: 0; }
+
+.row.end { justify-content: flex-end; }
+.id { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+.note { background: color-mix(in srgb, var(--accent) 10%, var(--card)); border-radius: 10px; padding: 10px 12px; }
+button.link { padding: 0; border: 0; background: none; color: var(--accent); text-decoration: underline; font: inherit; cursor: pointer; }
+.sugg { display: grid; gap: 8px; }
+.sugg a.item { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--fg); text-decoration: none; }
+.sugg .id { font-weight: 600; color: var(--accent); }
+.sugg .meta { font-size: 0.85rem; color: var(--muted); }
+mark { background: color-mix(in srgb, #f59e0b 35%, transparent); color: inherit; border-radius: 3px; }
