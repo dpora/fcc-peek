@@ -3,6 +3,7 @@ import { isPlausible } from '../fccId';
 import { groupExhibits, lookup } from '../fccidio';
 import type { Device, Exhibit } from '../fccidio';
 import { renderPdf } from '../pdfView';
+import { recordRecent } from '../recent';
 import { resolveId } from '../resolve';
 import type { Resolution } from '../resolve';
 import { resultsHash } from '../route';
@@ -127,6 +128,7 @@ function errorContent(err: unknown, fccId: string, retry: () => void): Node[] {
 }
 
 async function show(view: HTMLElement, device: Device, r: Extract<Resolution, { kind: 'found' }>): Promise<void> {
+  recordRecent(device);
   view.append(h('a', { href: '#/' }, '← Scan another'), h('h1', {}, device.fccId));
   if (r.corrected) {
     const notThis = h('button', { type: 'button', class: 'link' }, 'Not this device?');

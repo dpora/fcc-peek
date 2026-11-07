@@ -1,11 +1,45 @@
 import { h } from '../dom';
 import { findBareCandidates, findCandidates } from '../fccId';
 import { lookup } from '../fccidio';
+import { formatWhen, loadRecent } from '../recent';
 import { resolveScan } from '../resolve';
 import { resultsHash } from '../route';
 import { scanState } from '../store';
-import { boxInFrame, OCR_WIDTH } from '../viewfinder';
+import { BOX_ASPECT, BOX_WIDTH, boxInFrame, OCR_WIDTH } from '../viewfinder';
 import { describeError } from './errors';
+import { helpButton } from './help';
+
+// The last few devices looked up; nothing at all until there is one. The section takes the
+// space left above the buttons and scrolls its list; when not even one whole card fits there,
+// it is hidden ("cut") instead of showing a sliver. Returns the section and a cleanup.
+function recentScans(): { section: HTMLElement; stop: () => void } | null {
+  const recent = loadRecent();
+  if (recent.length === 0) return null;
+  const now = Date.now();
+  const list = h('div', { class: 'sugg' },
+    ...recent.map((r) => {
+      const details = [r.applicant, r.product].filter(Boolean).join(' · ');
+      return h('a', { class: 'item', href: resultsHash(r.fccId) },
+        h('span', { class: 'id' }, r.fccId),
+        details ? h('span', {}, details) : null,
+        h('span', { class: 'meta' }, formatWhen(r.scannedAt, now)));
+    }));
+  const section = h('section', { class: 'recent', 'aria-labelledby': 'recent-title' },
+    h('h2', { id: 'recent-title' }, 'Recent scans'), list);
+
+  // The section's size comes from the layout, not its content (flex-basis 0), and a cut section
+  // keeps its layout (visibility: hidden), so measuring here is stable either way.
+  const first = list.firstElementChild as HTMLElement;
+  const fit = () => {
+    const space = section.getBoundingClientRect();
+    const needed = list.getBoundingClientRect().top - space.top + first.getBoundingClientRect().height;
+    section.classList.toggle('cut', needed > space.height + 0.5);
+  };
+  const observer = new ResizeObserver(fit);
+  observer.observe(section);
+  observer.observe(first);
+  return { section, stop: () => observer.disconnect() };
+}
 
 export function renderScan(view: HTMLElement): () => void {
   let stopped = false;
@@ -15,13 +49,24 @@ export function renderScan(view: HTMLElement): () => void {
   video.muted = true; // iOS only autoplays inline video when the muted property is set
   // The captured frame, shown in place of the live video while it is read.
   const still = h('canvas', { hidden: '' }) as HTMLCanvasElement;
-  const frame = h('div', { class: 'viewfinder' }, video, still, h('div', { class: 'box' }));
+  const frame = h('div', { class: 'viewfinder', style: `--box-width: ${BOX_WIDTH}; --box-aspect: ${BOX_ASPECT}` },
+    video, still, h('div', { class: 'box' }));
   const capture = h('button', { class: 'primary', disabled: '' }, 'Capture') as HTMLButtonElement;
-  const file = h('input', { type: 'file', accept: 'image/*', capture: 'environment' }) as HTMLInputElement;
+  // No `capture` attribute: with it, iOS opens the camera directly instead of offering the photo
+  // library. Without it the picker offers Photo Library, Take Photo and Choose File.
+  const file = h('input', { type: 'file', accept: 'image/*' }) as HTMLInputElement;
   const pick = h('label', { class: 'button' }, 'Choose photo', file);
   const status = h('p', { class: 'status' }, 'Fit the "FCC ID" line inside the box.');
 
-  view.append(h('h1', {}, 'FCC Peek'), frame, status, h('div', { class: 'row end' }, pick, capture));
+  const recent = recentScans();
+  view.classList.add('scan');
+  view.append(
+    h('header', { class: 'title-row' }, h('h1', {}, 'FCC Peek'), ...helpButton()),
+    status,
+    frame,
+    recent?.section ?? '',
+    h('div', { class: 'row end actions' }, pick, capture),
+  );
 
   function cameraUnavailable(): void {
     frame.hidden = true;
@@ -29,12 +74,19 @@ export function renderScan(view: HTMLElement): () => void {
     status.textContent = 'Camera unavailable here. Choose a photo of the label.';
   }
 
-  if (navigator.mediaDevices?.getUserMedia) {
-    navigator.mediaDevices
-      .getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      })
+  // Dev only: ?fakecam swaps the camera for a generated feed (src/devCamera.ts). The build
+  // replaces import.meta.env.DEV with false, which drops this branch and the module with it.
+  const fake = import.meta.env.DEV && new URLSearchParams(location.search).has('fakecam');
+  const openCamera = (): Promise<MediaStream> =>
+    fake
+      ? import('../devCamera').then((m) => m.fakeCameraStream(m.fakeCameraSource(location.search)!))
+      : navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+
+  if (fake || typeof navigator.mediaDevices?.getUserMedia === 'function') {
+    openCamera()
       .then((s) => {
         if (stopped) {
           s.getTracks().forEach((t) => t.stop());
@@ -68,10 +120,11 @@ export function renderScan(view: HTMLElement): () => void {
     capture.disabled = true;
     file.disabled = true;
     status.className = 'status';
-    status.textContent = 'Reading label… (first scan downloads the OCR model, about 25 MB)';
+    status.textContent = 'Reading label…';
     try {
-      // Loaded on first scan: the OCR code is ~11 MB (ONNX Runtime and OpenCV).
-      const { recognize } = await import('../ocr');
+      // Usually already loaded by the preload in main.ts (OCR code ~11 MB, model ~25 MB).
+      const { recognize, isOcrReady } = await import('../ocr');
+      if (!isOcrReady()) status.textContent = 'Reading label… (still downloading the OCR model, about 25 MB)';
       const text = await recognize(image);
       if (stopped) return;
       if (!text.trim()) {
@@ -132,5 +185,6 @@ export function renderScan(view: HTMLElement): () => void {
   return () => {
     stopped = true;
     stream?.getTracks().forEach((t) => t.stop());
+    recent?.stop();
   };
 }

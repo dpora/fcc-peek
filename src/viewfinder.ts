@@ -1,7 +1,9 @@
-// The scan screen's viewfinder: a centred 3:1 box, 88% of the preview width.
-// Sizes chosen by the viewfinder benchmark (docs/ocr-research, 2026-10-24).
+// The scan screen's viewfinder: a centred 4:1 box, 88% of the preview width.
+// The viewfinder benchmark (docs/ocr-research, 2026-10-24) scored 4:1 the same as 3:1 and a bit
+// faster; it holds one "FCC ID: X" line but less tilt, and not a two-line "FCC ID" / ID label.
+// The CSS box reads both numbers from here (--box-width, --box-aspect set in ui/scan.ts).
 export const BOX_WIDTH = 0.88;
-export const BOX_ASPECT = 3;
+export const BOX_ASPECT = 4;
 // PaddleOCR misreads large, sharp text (a final "1" as "-"); a crop ~480 px wide read best.
 export const OCR_WIDTH = 480;
 // Extra margin cut around the box, as a fraction of the box width, on each side.
