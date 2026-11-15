@@ -1,13 +1,13 @@
 import { h } from '../dom';
 import { isPlausible } from '../fccId';
-import { groupExhibits, lookup } from '../fccidio';
-import type { Device, Exhibit } from '../fccidio';
-import { renderPdf } from '../pdfView';
+import { lookup } from '../fccidio';
+import type { Device } from '../fccidio';
 import { recordRecent } from '../recent';
 import { resolveId } from '../resolve';
 import type { Resolution } from '../resolve';
 import { resultsHash } from '../route';
 import { scanState } from '../store';
+import { renderDocuments, formatDate } from './documents';
 import { describeError } from './errors';
 import { idForm } from './idForm';
 
@@ -57,7 +57,7 @@ export function renderNoId(view: HTMLElement): void {
 }
 
 function showResolution(view: HTMLElement, r: Resolution, ocrText: string): void {
-  if (r.kind === 'found') void show(view, r.device, r);
+  if (r.kind === 'found') show(view, r.device, r);
   else renderNotFound(view, r, ocrText);
 }
 
@@ -127,9 +127,14 @@ function errorContent(err: unknown, fccId: string, retry: () => void): Node[] {
   return nodes;
 }
 
-async function show(view: HTMLElement, device: Device, r: Extract<Resolution, { kind: 'found' }>): Promise<void> {
+function show(view: HTMLElement, device: Device, r: Extract<Resolution, { kind: 'found' }>): void {
   recordRecent(device);
-  view.append(h('a', { href: '#/' }, '← Scan another'), h('h1', {}, device.fccId));
+  view.classList.add('results');
+  const summary = [device.applicant, device.product, device.grantDate && `Granted ${formatDate(device.grantDate)}`].filter(Boolean).join(' · ');
+  view.append(
+    h('a', { href: '#/' }, '← Scan another'),
+    h('header', { class: 'device' }, h('h1', {}, device.fccId), summary ? h('p', { class: 'meta' }, summary) : null),
+  );
   if (r.corrected) {
     const notThis = h('button', { type: 'button', class: 'link' }, 'Not this device?');
     view.append(
@@ -139,6 +144,7 @@ async function show(view: HTMLElement, device: Device, r: Extract<Resolution, { 
     );
     notThis.addEventListener('click', () => {
       view.replaceChildren();
+      view.classList.remove('results');
       renderNotFound(view, { kind: 'notfound', read: r.read, suggestions: r.alternatives }, scanState.text);
       window.scrollTo(0, 0);
     });
@@ -148,56 +154,5 @@ async function show(view: HTMLElement, device: Device, r: Extract<Resolution, { 
     r.others.forEach((id, i) => also.append(i ? ', ' : '', h('a', { href: resultsHash(id) }, id)));
     view.append(also);
   }
-  const summary = h('dl', { class: 'summary' });
-  const add = (label: string, value?: string) => {
-    if (value) summary.append(h('dt', {}, label), h('dd', {}, value));
-  };
-  add('Applicant', device.applicant);
-  add('Product', device.product);
-  add('Granted', device.grantDate);
-  view.append(summary);
-
-  const { internal, other } = groupExhibits(device);
-  view.append(h('h2', {}, 'Internal photos'));
-  if (internal.length === 0) view.append(h('p', { class: 'status' }, 'No internal photos are listed for this FCC ID.'));
-
-  const toRender: { exhibit: Exhibit; pages: HTMLElement }[] = [];
-  for (const exhibit of internal) {
-    view.append(h('h3', {}, exhibit.title));
-    if (exhibit.status === 'available' && exhibit.pdfUrl) {
-      const pages = h('div', { class: 'pages' }, h('p', { class: 'status' }, 'Rendering…'));
-      view.append(pages, h('p', {}, h('a', { href: exhibit.pdfUrl, target: '_blank', rel: 'noopener' }, 'Open PDF')));
-      toRender.push({ exhibit, pages });
-    } else if (exhibit.status === 'pending') {
-      view.append(h('p', { class: 'status' }, `Confidential until ${exhibit.availableDate}.`));
-    } else {
-      view.append(h('p', { class: 'status' }, 'Not publicly available.'));
-    }
-  }
-
-  if (other.length > 0) {
-    view.append(h('h2', {}, 'Other documents'));
-    const list = h('ul', { class: 'docs' });
-    for (const e of other) {
-      const label = `${e.title} — ${e.type}`;
-      list.append(
-        h('li', {},
-          e.pageUrl ? h('a', { href: e.pageUrl, target: '_blank', rel: 'noopener' }, label) : label,
-          e.status === 'pending' ? ` (confidential until ${e.availableDate})` : e.status === 'unavailable' ? ' (not public)' : null,
-        ),
-      );
-    }
-    view.append(list);
-  }
-
-  // Render one PDF at a time to keep memory down on phones.
-  for (const { exhibit, pages } of toRender) {
-    if (!pages.isConnected) return;
-    pages.replaceChildren();
-    try {
-      await renderPdf(exhibit.pdfUrl!, pages);
-    } catch {
-      pages.replaceChildren(h('p', { class: 'error' }, "Couldn't render this PDF. Use “Open PDF” instead."));
-    }
-  }
+  renderDocuments(view, device);
 }

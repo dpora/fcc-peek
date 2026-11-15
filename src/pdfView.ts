@@ -10,7 +10,8 @@ GlobalWorkerOptions.workerSrc = workerUrl;
 // resolves them. Without wasmUrl pdf.js drops JPEG 2000 images and draws pages without photos.
 const assets = new URL(`${import.meta.env.BASE_URL}pdfjs/`, document.baseURI).href;
 
-export async function renderPdf(url: string, container: HTMLElement): Promise<void> {
+// onPageCount: called once the page count is known (the viewer's "Page 1 of N").
+export async function renderPdf(url: string, container: HTMLElement, onPageCount?: (n: number) => void): Promise<void> {
   const task = getDocument({
     url,
     disableRange: true,
@@ -20,6 +21,7 @@ export async function renderPdf(url: string, container: HTMLElement): Promise<vo
   });
   try {
     const pdf = await task.promise;
+    onPageCount?.(pdf.numPages);
     const cssWidth = Math.min(container.clientWidth || 800, 1200);
     const targetWidth = cssWidth * Math.min(window.devicePixelRatio || 1, 2);
     for (let i = 1; i <= pdf.numPages; i++) {

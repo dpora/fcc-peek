@@ -8,3 +8,10 @@ public/pdfjs/
 tests/fcc_exhibits/
 docs/ocr-research/bench/eng.traineddata
 __pycache__/
+
+# Local test photos, not committed
+tests/example_images/
+
+# Generated OCR benchmark output (regenerate with the bench/*.mts scripts); contains third-party label text
+docs/ocr-research/bench/*-results.json
+docs/ocr-research/bench/*-texts.json

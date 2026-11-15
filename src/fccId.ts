@@ -13,7 +13,10 @@ const ID_RE = /^[A-Z0-9][A-Z0-9-]{2,17}[A-Z0-9]$/;
 // the line after "FCC ID:" is still reached.
 const LABEL_SOURCE = String.raw`(CONTAINS\s+)?(?:F\s?C\s?C|(?<![A-Z0-9])([FC]\s?C))\s*[-_.]?\s*(?:CERTIFICATION\s+)?[I1L|]\s?D(?!ENTIF)[\s:;.#]*(?:(?:NUMBER|NUM|NO)\b[\s:;.#]*)?`;
 // The next field glued to the ID: "2A6JBMI01/IC:28450-MI01", "APISB595MK2SUBIC:6132A-SB595MK2SUB".
-const GLUED_FIELD_RE = /(\/|IC:).*$/i;
+// PaddleOCR often reads the I of "IC:" as 1 or l and drops the space: "PY3164003591C:4054A-16400359".
+// IDs never contain a colon, so "1C:" can only be the IC field.
+const IC_FIELD_RE = /[I1L|]C:/gi;
+const GLUED_FIELD_RE = /(\/|[I1L|]C:).*$/i;
 // First token after the label, and optionally a second token on the same line.
 const TOKEN_RE = /^(\S+)(?:[ \t]+(\S+))?/;
 // Words that start the next field on a label, never part of an FCC ID.
@@ -92,7 +95,7 @@ const BARE_RE = /(?<![A-Za-z0-9-])(?:[A-Z][A-Z2-9]{2}|2[A-Z][A-Z2-9]{3})-?[A-Z0-
 // fallback when that finds nothing, each confirmed by an exact fccid.io match.
 export function findBareCandidates(text: string, max = 5): string[] {
   const found = new Set<string>();
-  for (const [word] of text.replace(/IC:/gi, ' IC: ').matchAll(BARE_RE)) {
+  for (const [word] of text.replace(IC_FIELD_RE, ' IC: ').matchAll(BARE_RE)) {
     const id = normalize(word);
     if (id.length < 6 || !/\d/.test(id) || found.has(id)) continue;
     found.add(id);

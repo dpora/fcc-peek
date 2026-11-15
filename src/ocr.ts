@@ -1,4 +1,5 @@
 import Ocr from '@gutenye/ocr-browser';
+import { downscale } from './image';
 
 const assets = (path: string) => new URL(`${import.meta.env.BASE_URL}ocr/${path}`, location.href).href;
 
@@ -36,8 +37,9 @@ export function isOcrReady(): boolean {
 }
 
 // PaddleOCR (PP-OCRv4), one line of text per detected line, as in the benchmark.
+// Images are capped at MAX_OCR_SIDE first: a full-size phone photo runs iOS Safari out of memory.
 export async function recognize(image: Blob): Promise<string> {
-  const url = URL.createObjectURL(image);
+  const url = URL.createObjectURL(await downscale(image));
   try {
     const ocr = await getOcr();
     const { texts } = await ocr.detect(url);

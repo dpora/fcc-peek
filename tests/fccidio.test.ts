@@ -2,7 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FccIdioError, groupExhibits, lookup, parseDevicePage } from '../src/fccidio';
+import { FccIdioError, lookup, parseDevicePage } from '../src/fccidio';
+import type { Device } from '../src/fccidio';
+
+const internalOf = (d: Device) => d.exhibits.filter((e) => e.type === 'Internal Photos');
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, 'fixtures', name), 'utf8');
 const TODAY = '2026-10-11';
@@ -45,6 +48,7 @@ describe('parseDevicePage: device with public internal photos', () => {
       docId: '3547120',
       pageUrl: 'https://fccid.io/BCG-E3175A/Internal-Photos/A1901-Internal-Photos-v1-1-3547120',
       pdfUrl: 'https://fccid.io/pdf.php?id=3547120',
+      size: expect.stringMatching(/^[\d.,]+ (KB|MB)$/),
     });
   });
 
@@ -64,7 +68,7 @@ describe('parseDevicePage: device with public internal photos', () => {
 describe('parseDevicePage: internal photos still confidential', () => {
   it('reports pending with the availability date', () => {
     const device = parseDevicePage(fixture('apilivebeam4.html'), TODAY);
-    const { internal } = groupExhibits(device);
+    const internal = internalOf(device);
     expect(internal.length).toBeGreaterThan(0);
     expect(internal[0]).toMatchObject({ status: 'pending', availableDate: '2027-04-07' });
     expect(internal[0].pdfUrl).toBeUndefined();
@@ -72,7 +76,7 @@ describe('parseDevicePage: internal photos still confidential', () => {
 
   it('reports unavailable once the date has passed but nothing is mirrored', () => {
     const device = parseDevicePage(fixture('apilivebeam4.html'), '2027-05-01');
-    expect(groupExhibits(device).internal[0].status).toBe('unavailable');
+    expect(internalOf(device)[0].status).toBe('unavailable');
   });
 });
 
@@ -83,17 +87,6 @@ describe('parseDevicePage: errors', () => {
 
   it('reports layout when a device page lacks the details table', () => {
     expect(kindOf(() => parseDevicePage('<h1>FCC ID X1234</h1>', TODAY))).toBe('layout');
-  });
-});
-
-describe('groupExhibits', () => {
-  it('splits internal photos from everything else', () => {
-    const device = parseDevicePage(fixture('bcg-e3175a.html'), TODAY);
-    const { internal, other } = groupExhibits(device);
-    expect(internal.every((e) => e.type === 'Internal Photos')).toBe(true);
-    expect(internal.length).toBeGreaterThan(0);
-    expect(other.some((e) => e.type === 'External Photos')).toBe(true);
-    expect(internal.length + other.length).toBe(device.exhibits.length);
   });
 });
 

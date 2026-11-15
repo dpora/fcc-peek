@@ -93,6 +93,17 @@ describe('findCandidates', () => {
     expect(ids('FCCID:2AEM4-231770IC:20631-231770')).toEqual(['2AEM4-231770']);
   });
 
+  it('cuts a glued "IC:" misread as "1C:" or "lC:" (Netgear label, PaddleOCR)', () => {
+    expect(ids('FCCID:PY3164003591C:4054A-16400359')).toEqual(['PY316400359']);
+    expect(ids('FCC1D:PY3164003591C:4054A-16400')).toEqual(['PY316400359']);
+    expect(ids('FCCID:PY316400359lC:4054A-16400359')).toEqual(['PY316400359']);
+    expect(ids('FCCID:PY316400359 1C:4054A-16400359')).toEqual(['PY316400359']);
+  });
+
+  it('keeps a 1C that is not followed by a colon', () => {
+    expect(ids('FCC ID: BCG-A1C')).toEqual(['BCG-A1C']);
+  });
+
   it('reads "FCC Certification ID"', () => {
     expect(ids('FCC Certification ID : 2AYSR-MCLSWB01')).toEqual(['2AYSR-MCLSWB01']);
   });
@@ -186,6 +197,8 @@ describe('findBareCandidates', () => {
   it('splits glued words and fields', () => {
     expect(findBareCandidates('PKRNVWMIFI5792LabelLocation')).toEqual(['PKRNVWMIFI5792']);
     expect(findBareCandidates('CID: :2BCGWXE75IC:31152-XE75')).toEqual(['2BCGWXE75']);
+    expect(findBareCandidates('CID:PY3164003591C:4054A-164003')).toEqual(['PY316400359']);
+    expect(findBareCandidates('ID:PY316400359 1C:4054A-16400359')).toEqual(['PY316400359']);
   });
   it('skips IC numbers, words without digits and invalid grantee codes', () => {
     expect(findBareCandidates('2977A-TC695 20631-231770 MADE IN CHINA 102BE1 O1X2345')).toEqual([]);

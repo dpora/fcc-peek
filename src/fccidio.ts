@@ -19,6 +19,7 @@ export interface Exhibit {
   docId?: string;
   pageUrl?: string;
   pdfUrl?: string;
+  size?: string; // as fccid.io shows it, e.g. "2.1 MB"
 }
 
 export interface Device {
@@ -70,6 +71,7 @@ function parseExhibit(tr: Element, today: string): Exhibit {
 
   const exhibit: Exhibit = { type, title, status: 'unavailable' };
   if (availableDate) exhibit.availableDate = availableDate;
+  const size = /([\d.,]+\s*[KMG]?B)\b/i.exec(text(cell('File')))?.[1];
 
   if (link) {
     const href = link.getAttribute('href') ?? '';
@@ -79,6 +81,7 @@ function parseExhibit(tr: Element, today: string): Exhibit {
       exhibit.status = 'available';
       exhibit.docId = docId;
       exhibit.pdfUrl = `${BASE}/pdf.php?id=${docId}`;
+      if (size) exhibit.size = size;
     }
   } else if (availableDate && availableDate > today) {
     exhibit.status = 'pending';
@@ -191,13 +194,4 @@ export async function lookup(
     throw new FccIdioError('network', "Couldn't reach fccid.io. Check your connection.");
   }
   return parseLookupPage(res.status, await res.text(), todayIso(), res.redirected);
-}
-
-export function groupExhibits(device: Device): { internal: Exhibit[]; other: Exhibit[] } {
-  const internal: Exhibit[] = [];
-  const other: Exhibit[] = [];
-  for (const e of device.exhibits) {
-    (e.type.toLowerCase() === 'internal photos' ? internal : other).push(e);
-  }
-  return { internal, other };
 }

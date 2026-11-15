@@ -6,8 +6,6 @@ export const BOX_WIDTH = 0.88;
 export const BOX_ASPECT = 4;
 // PaddleOCR misreads large, sharp text (a final "1" as "-"); a crop ~480 px wide read best.
 export const OCR_WIDTH = 480;
-// Extra margin cut around the box, as a fraction of the box width, on each side.
-const MARGIN = 0.05;
 
 export interface Rect {
   x: number;
@@ -16,7 +14,7 @@ export interface Rect {
   height: number;
 }
 
-// The part of the video frame under the box (+margin), for a preview element of
+// Exactly the part of the video frame under the box (no margin, so OCR reads what the user framed), for a preview element of
 // elW x elH showing a vidW x vidH frame with object-fit: cover.
 export function boxInFrame(elW: number, elH: number, vidW: number, vidH: number): Rect {
   const scale = Math.max(elW / vidW, elH / vidH);
@@ -25,13 +23,12 @@ export function boxInFrame(elW: number, elH: number, vidW: number, vidH: number)
 
   const boxW = elW * BOX_WIDTH;
   const boxH = boxW / BOX_ASPECT;
-  const m = boxW * MARGIN;
-  const left = (elW - boxW) / 2 - m;
-  const top = (elH - boxH) / 2 - m;
+  const left = (elW - boxW) / 2;
+  const top = (elH - boxH) / 2;
 
   const x0 = Math.max(0, (left - offsetX) / scale);
   const y0 = Math.max(0, (top - offsetY) / scale);
-  const x1 = Math.min(vidW, (left + boxW + 2 * m - offsetX) / scale);
-  const y1 = Math.min(vidH, (top + boxH + 2 * m - offsetY) / scale);
+  const x1 = Math.min(vidW, (left + boxW - offsetX) / scale);
+  const y1 = Math.min(vidH, (top + boxH - offsetY) / scale);
   return { x: Math.round(x0), y: Math.round(y0), width: Math.round(x1 - x0), height: Math.round(y1 - y0) };
 }
