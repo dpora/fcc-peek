@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DOC_TYPES, OTHER_COLOR, gridRows, groupDocuments } from '../src/docTypes';
+import { DOC_TYPES, OTHER_COLOR, gridCols, gridRows, groupDocuments } from '../src/docTypes';
 import type { Exhibit } from '../src/fccidio';
 import { parseDevicePage } from '../src/fccidio';
 
@@ -117,5 +117,18 @@ describe('gridRows', () => {
   it('keeps at least one row when there are tiles, none when there are not', () => {
     expect(gridRows(50, 4)).toBe(1);
     expect(gridRows(648, 0)).toBe(0);
+  });
+
+  it('needs fewer rows with more columns', () => {
+    expect(gridRows(648, 8, 120, 12, 4)).toBe(2);
+    expect(gridRows(648, 9, 120, 12, 4)).toBe(3);
+  });
+});
+
+describe('gridCols', () => {
+  it('uses two columns on a phone and more on wider screens', () => {
+    expect(gridCols(390)).toBe(2);
+    expect(gridCols(768)).toBe(3);
+    expect(gridCols(1168)).toBe(4);
   });
 });

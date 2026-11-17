@@ -1,6 +1,7 @@
 import { h } from '../dom';
 import { findBareCandidates, findCandidates } from '../fccId';
 import { lookup } from '../fccidio';
+import { readLabel } from '../readLabel';
 import { formatWhen, loadRecent } from '../recent';
 import { resolveScan } from '../resolve';
 import { resultsHash } from '../route';
@@ -41,6 +42,16 @@ function recentScans(): { section: HTMLElement; stop: () => void } | null {
   return { section, stop: () => observer.disconnect() };
 }
 
+// Keyboard icon in the Scan header: type the FCC ID instead of scanning it.
+function typeButton(): HTMLElement {
+  const a = h('a', { href: '#/enter', class: 'button icon', 'aria-label': 'Type the FCC ID', title: 'Type the FCC ID' });
+  a.innerHTML =
+    '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">' +
+    '<rect x="2" y="5" width="20" height="14" rx="2.5"/>' +
+    '<path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 15.5h8"/></svg>';
+  return a;
+}
+
 export function renderScan(view: HTMLElement): () => void {
   let stopped = false;
   let stream: MediaStream | null = null;
@@ -61,7 +72,7 @@ export function renderScan(view: HTMLElement): () => void {
   const recent = recentScans();
   view.classList.add('scan');
   view.append(
-    h('header', { class: 'title-row' }, h('h1', {}, 'FCC Peek'), ...helpButton()),
+    h('header', { class: 'title-row' }, h('h1', {}, 'FCC Peek'), typeButton(), ...helpButton()),
     status,
     frame,
     recent?.section ?? '',
@@ -125,7 +136,10 @@ export function renderScan(view: HTMLElement): () => void {
       // Usually already loaded by the preload in main.ts (OCR code ~11 MB, model ~25 MB).
       const { recognize, isOcrReady } = await import('../ocr');
       if (!isOcrReady()) status.textContent = 'Reading label… (still downloading the OCR model, about 25 MB)';
-      const text = await recognize(image);
+      const text = await readLabel(
+        (upsideDown) => recognize(image, upsideDown),
+        () => { if (!stopped) status.textContent = 'Reading label… (trying it upside down)'; },
+      );
       if (stopped) return;
       if (!text.trim()) {
         fail("Couldn't read any text. Try again closer, with better light.");

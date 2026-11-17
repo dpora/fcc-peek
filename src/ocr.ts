@@ -38,8 +38,9 @@ export function isOcrReady(): boolean {
 
 // PaddleOCR (PP-OCRv4), one line of text per detected line, as in the benchmark.
 // Images are capped at MAX_OCR_SIDE first: a full-size phone photo runs iOS Safari out of memory.
-export async function recognize(image: Blob): Promise<string> {
-  const url = URL.createObjectURL(await downscale(image));
+// upsideDown: read the image turned 180° (the recognizer only reads upright text).
+export async function recognize(image: Blob, upsideDown = false): Promise<string> {
+  const url = URL.createObjectURL(await downscale(image, undefined, upsideDown));
   try {
     const ocr = await getOcr();
     const { texts } = await ocr.detect(url);

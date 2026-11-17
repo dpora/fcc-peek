@@ -1,10 +1,11 @@
 import { normalize } from './fccId';
 
-export type Route = { name: 'scan' } | { name: 'notfound' } | { name: 'results'; fccId: string };
+export type Route = { name: 'scan' } | { name: 'enter' } | { name: 'notfound' } | { name: 'results'; fccId: string };
 
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '');
   if (path === '/not-found') return { name: 'notfound' };
+  if (path === '/enter') return { name: 'enter' };
   const m = /^\/id\/(.+)$/.exec(path);
   if (m) {
     try {

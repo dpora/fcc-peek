@@ -1,9 +1,12 @@
 import { h } from '../dom';
-import { gridRows, groupDocuments } from '../docTypes';
+import { chipLabels } from '../docNames';
+import { gridCols, gridRows, groupDocuments } from '../docTypes';
 import type { DocGroup } from '../docTypes';
 import type { Device, Exhibit } from '../fccidio';
+import type { PdfMode } from '../pdfView';
 
-// The documents part of the results page (Penpot "Results v2"): a 2-column grid of the types
+// The documents part of the results page (Penpot "Results v2"): a grid (2 columns on a phone,
+// more on a wide screen) of the types
 // that have a public document, as many rows as fit on screen, then a "More documents" list
 // (public types that did not fit, then confidential ones, then the types never filed).
 // Tapping a public type opens the viewer; tapping a confidential one explains why.
@@ -81,25 +84,30 @@ export function renderDocuments(view: HTMLElement, device: Device): void {
   if (nothing) view.append(nothing);
   view.append(grid, more);
 
-  let shown = -1;
+  let shown = '';
   function layout(): void {
     if (!view.isConnected) {
       observer.disconnect();
       return;
     }
+    const cols = gridCols(view.clientWidth);
     const space = (moreShown: boolean) =>
       window.innerHeight - grid.offsetTop - (moreShown ? (more.hidden ? 52 : toggle.offsetHeight) + GAP : 0) - 16;
-    let rows = gridRows(space(confidential.length > 0), visible.length);
-    if (confidential.length === 0 && rows * 2 < visible.length) rows = gridRows(space(true), visible.length);
-    const fit = Math.min(visible.length, rows * 2);
+    let rows = gridRows(space(confidential.length > 0), visible.length, 120, GAP, cols);
+    if (confidential.length === 0 && rows * cols < visible.length) rows = gridRows(space(true), visible.length, 120, GAP, cols);
+    const fit = Math.min(visible.length, rows * cols);
     const rowHeight = rows ? Math.max(120, Math.min(MAX_ROW, (space(fit < visible.length || confidential.length > 0) - GAP * (rows - 1)) / rows)) : 0;
     grid.style.gridTemplateRows = rows ? `repeat(${rows}, ${rowHeight}px)` : '';
+    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
     grid.hidden = rows === 0;
-    if (fit === shown) return;
-    shown = fit;
+    if (`${fit}/${cols}` === shown) return;
+    shown = `${fit}/${cols}`;
 
-    grid.replaceChildren(...visible.slice(0, fit).map(tile));
-    grid.classList.toggle('odd', fit % 2 === 1);
+    const tiles = visible.slice(0, fit).map(tile);
+    // The last tile stretches over the empty cells of a part-filled last row.
+    const empty = (cols - (fit % cols)) % cols;
+    if (empty > 0) tiles[tiles.length - 1].style.gridColumn = `span ${empty + 1}`;
+    grid.replaceChildren(...tiles);
     const rest = visible.slice(fit);
     const items: Node[] = rest.map((g) => {
       const r = row(g);
@@ -147,6 +155,29 @@ function closeOnBackdrop(dialog: HTMLDialogElement): void {
 
 // Near-full-screen viewer for one document type: chips to switch between its documents,
 // the PDF pages, "Save PDF" and "Open on fccid.io".
+const MODE_KEY = 'fcc-peek:viewer-mode';
+
+function loadMode(): PdfMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'images' ? 'images' : 'pages';
+  } catch {
+    return 'pages';
+  }
+}
+
+function saveMode(mode: PdfMode): void {
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // Private mode or storage blocked: the choice lasts until the viewer closes.
+  }
+}
+
+const MODES = [
+  { mode: 'pages', label: 'Pages', title: 'Show whole pages' },
+  { mode: 'images', label: 'Images', title: 'Show only the photos and pictures in the PDF' },
+] as const;
+
 function createViewer(device: Device, host: HTMLElement): { open: (g: DocGroup) => void } {
   const dialog = h('dialog', { class: 'sheet viewer', 'aria-labelledby': 'viewer-title' }) as HTMLDialogElement;
   closeOnBackdrop(dialog);
@@ -165,6 +196,21 @@ function createViewer(device: Device, host: HTMLElement): { open: (g: DocGroup) 
     const save = h('button', { type: 'button', class: 'primary' }, 'Save PDF') as HTMLButtonElement;
     const meta = h('p', { class: 'meta' });
     let current: Exhibit | null = null;
+    let mode = loadMode();
+
+    // Pages | Images: whole pages, or only the pictures embedded in them.
+    const modeButtons = MODES.map((m) => {
+      const b = h('button', { type: 'button', 'aria-pressed': String(m.mode === mode), title: m.title }, m.label);
+      b.addEventListener('click', () => {
+        if (mode === m.mode) return;
+        mode = m.mode;
+        saveMode(mode);
+        MODES.forEach((o, i) => modeButtons[i].setAttribute('aria-pressed', String(o.mode === mode)));
+        if (current) select(current);
+      });
+      return b;
+    });
+    const modeToggle = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Show' }, ...modeButtons);
 
     function select(e: Exhibit): void {
       current = e;
@@ -173,13 +219,13 @@ function createViewer(device: Device, host: HTMLElement): { open: (g: DocGroup) 
       save.disabled = e.status !== 'available';
       meta.textContent = [e.title, e.status === 'available' ? 'PDF' : null, e.size].filter(Boolean).join(' · ');
       indicator.hidden = true;
-      const pages = h('div', { class: 'pages' });
+      const pages = h('div', { class: `pages ${mode}` });
       pagesBox.replaceChildren(pages, indicator);
       if (e.status !== 'available' || !e.pdfUrl) {
         pages.append(h('p', { class: 'status' }, e.status === 'pending' ? `Confidential until ${formatDate(e.availableDate!)}.` : 'This document is not public.'));
         return;
       }
-      pages.append(h('p', { class: 'status' }, 'Loading…'));
+      pages.append(h('p', { class: 'status' }, mode === 'images' ? 'Finding images…' : 'Loading…'));
       let total = 0;
       const seen = new IntersectionObserver((entries) => {
         for (const en of entries) if (en.isIntersecting) indicator.textContent = `Page ${(en.target as HTMLImageElement).dataset.page} of ${total}`;
@@ -188,23 +234,33 @@ function createViewer(device: Device, host: HTMLElement): { open: (g: DocGroup) 
         if (!pages.isConnected) return mo.disconnect();
         for (const r of records) for (const n of r.addedNodes) {
           const img = (n as Element).querySelector?.('img');
-          if (img) { img.dataset.page = img.alt.replace(/\D/g, ''); seen.observe(img); }
+          if (img) seen.observe(img);
         }
       }).observe(pages, { childList: true });
       renderPdf(e.pdfUrl, pages, (n) => {
         total = n;
         indicator.textContent = `Page 1 of ${n}`;
         indicator.hidden = false;
-      })
-        .then(() => pages.querySelector('.status')?.remove())
+      }, mode)
+        .then((shown) => {
+          const status = pages.querySelector('.status');
+          if (!status) return;
+          if (shown > 0) return status.remove();
+          // Images mode on a document without pictures (a text-only report, say).
+          const showPages = h('button', { type: 'button', class: 'link' }, 'Show the pages');
+          showPages.addEventListener('click', () => modeButtons[0].click());
+          status.replaceChildren('No photos or pictures in this document. ', showPages);
+          indicator.hidden = true;
+        })
         .catch(() => {
           if (current === e) pages.replaceChildren(h('p', { class: 'error' }, "Couldn't show this PDF here. Use “Open on fccid.io” instead."));
         });
     }
 
     const chipFor = new Map<Exhibit, HTMLElement>();
-    for (const e of g.exhibits) {
-      const c = h('button', { type: 'button', class: 'chip', 'aria-pressed': 'false' }, e.title || g.name);
+    const labels = chipLabels(g.exhibits.map((e) => e.title), g.name);
+    for (const [i, e] of g.exhibits.entries()) {
+      const c = h('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', title: e.title || g.name }, labels[i]);
       c.addEventListener('click', () => select(e));
       chipFor.set(e, c);
       chips.append(c);
@@ -212,6 +268,7 @@ function createViewer(device: Device, host: HTMLElement): { open: (g: DocGroup) 
     chips.hidden = g.exhibits.length < 2;
     save.addEventListener('click', () => current && void savePdf(current, device.fccId, save));
 
+    head.insertBefore(modeToggle, close);
     dialog.style.setProperty('--doc', g.color);
     dialog.replaceChildren(
       h('div', { class: 'grabber', 'aria-hidden': 'true' }),
@@ -228,9 +285,9 @@ function createViewer(device: Device, host: HTMLElement): { open: (g: DocGroup) 
 }
 
 // Lazy so the results page doesn't load pdf.js until a document is opened.
-async function renderPdf(url: string, container: HTMLElement, onPageCount: (n: number) => void): Promise<void> {
+async function renderPdf(url: string, container: HTMLElement, onPageCount: (n: number) => void, mode: PdfMode): Promise<number> {
   const m = await import('../pdfView');
-  return m.renderPdf(url, container, onPageCount);
+  return m.renderPdf(url, container, onPageCount, mode);
 }
 
 async function savePdf(e: Exhibit, fccId: string, button: HTMLButtonElement): Promise<void> {

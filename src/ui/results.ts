@@ -47,6 +47,18 @@ export function renderResults(view: HTMLElement, fccId: string): void {
   }
 }
 
+// Typing the ID instead of scanning (the keyboard button on the Scan screen).
+export function renderEnter(view: HTMLElement): void {
+  const form = idForm('');
+  view.append(
+    h('a', { href: '#/' }, '← Scan instead'),
+    h('h1', {}, 'Type the FCC ID'),
+    h('p', { class: 'status' }, 'It’s on the label, usually after “FCC ID”, or on the phone under Settings → About.'),
+    form,
+  );
+  form.querySelector('input')!.focus();
+}
+
 // Shown when a scan found no FCC ID on the label at all.
 export function renderNoId(view: HTMLElement): void {
   if (!scanState.text) {

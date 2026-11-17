@@ -55,6 +55,8 @@ form.id-form input { flex: 1; min-width: 0; font: inherit; padding: 0.7rem; bord
 .error { color: var(--error); }
 .tag { font-size: 0.8rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 .pages img { display: block; width: 100%; height: auto; margin: 8px 0; border-radius: 8px; border: 1px solid var(--border); background: #fff; }
+/* Extracted pictures at no more than their own size. */
+.pages.images img { width: auto; max-width: 100%; margin: 8px auto; }
 pre { white-space: pre-wrap; word-break: break-word; font-size: 0.85rem; }
 form.id-form { flex-wrap: wrap; }
 form.id-form .error { flex-basis: 100%; margin: 0; }
@@ -86,7 +88,9 @@ main.scan .recent .sugg { min-height: 0; overflow-y: auto; align-content: start;
 main.scan .recent.cut { visibility: hidden; }
 .title-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .title-row h1, .title-row h2 { margin: 0; }
-button.icon { width: 36px; height: 36px; padding: 0; flex: none; border-radius: 50%; font-weight: 700; line-height: 1; }
+button.icon, a.icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex: none; border-radius: 50%; font-weight: 700; line-height: 1; }
+/* Scan header: title on the left, the type-it-in and help buttons together on the right. */
+header.title-row h1 { margin-right: auto; }
 .recent h2 { margin: 0; }
 .meta { font-size: 0.85rem; color: var(--muted); }
 
@@ -118,7 +122,6 @@ a.button { text-decoration: none; text-align: center; }
 .tile, .doc-row, dialog.viewer, dialog.info { --doc-text: color-mix(in srgb, var(--doc) 82%, var(--fg)); }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--doc); flex: none; }
 .doc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.doc-grid.odd > .tile:last-child { grid-column: span 2; }
 .tile {
   display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; min-height: 0;
   padding: 14px; text-align: left; border: 2px solid var(--doc); border-radius: 14px; background: var(--card); color: var(--fg);
@@ -157,6 +160,10 @@ dialog.viewer { height: calc(100dvh - 40px); max-height: none; overflow: hidden;
 dialog.viewer[open] { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
 dialog.viewer > * { flex-shrink: 0; }
 dialog.viewer > .sheet-head, dialog.viewer > .chips { padding: 0 16px; }
+/* Pages | Images. */
+.segmented { display: inline-flex; flex: none; padding: 2px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); }
+.segmented button { padding: 4px 12px; border: 0; border-radius: 999px; background: none; font-size: 0.9rem; color: var(--muted); }
+.segmented button[aria-pressed="true"] { background: color-mix(in srgb, var(--doc, var(--accent)) 14%, var(--card)); color: var(--doc-text, var(--fg)); font-weight: 600; }
 .sheet-head { justify-content: flex-start; gap: 12px; }
 .sheet-head .dot { width: 12px; height: 12px; }
 .sheet-head .head-text { flex: 1; min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; }
@@ -179,3 +186,28 @@ dialog.viewer > .viewer-body {
 .viewer-foot .row { margin: 0; flex-wrap: nowrap; }
 .viewer-foot .primary { flex: 1; }
 .viewer-foot .meta { margin: 0; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Wide screens: the results page and its grid widen, sheets become centred windows, and the
+   document viewer takes most of the screen with pages side by side. */
+@media (min-width: 900px) {
+  main.results { max-width: 1200px; padding: 24px; }
+  dialog.sheet { margin: auto; border-radius: 16px; max-height: calc(100dvh - 48px); }
+  dialog.viewer, dialog.info { border-bottom: 2px solid var(--doc); }
+  dialog.sheet .grabber { display: none; }
+  dialog.sheet form { padding-top: 20px; padding-bottom: 20px; }
+  dialog.viewer { width: min(1400px, 100vw - 48px); max-width: none; height: calc(100dvh - 48px); }
+  dialog.viewer[open] { padding-top: 16px; }
+  dialog.viewer > .viewer-body { padding: 16px 24px; }
+  dialog.viewer > .sheet-head, dialog.viewer > .chips { padding: 0 24px; }
+  .pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 16px; align-items: start; }
+  .pages.images { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  .pages > :not(a) { grid-column: 1 / -1; }
+  .pages img, .pages.images img { margin: 0 auto; }
+  .viewer-foot { grid-template-columns: 1fr auto; align-items: center; padding: 0 24px 20px; }
+  .viewer-foot .meta { order: -1; text-align: left; }
+  .viewer-foot .primary { flex: none; }
+}
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  dialog.sheet[open] { animation: sheet-in 0.15s ease-out; }
+}
+@keyframes sheet-in { from { opacity: 0; transform: scale(0.98); } }

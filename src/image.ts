@@ -12,22 +12,28 @@ export function scaledSize(width: number, height: number, max: number): { width:
   return { width: Math.max(1, Math.round(width * s)), height: Math.max(1, Math.round(height * s)) };
 }
 
-// Shrinks an image so its long side is at most `max`; returns it unchanged if it already fits.
+// Shrinks an image so its long side is at most `max`; returns it unchanged if it already fits
+// (and isn't to be turned). `upsideDown` turns it 180°, for a label photographed upside down.
 // Decoded through an <img>, like the OCR library does, so EXIF rotation is applied the same way.
-export async function downscale(image: Blob, max = MAX_OCR_SIDE): Promise<Blob> {
+export async function downscale(image: Blob, max = MAX_OCR_SIDE, upsideDown = false): Promise<Blob> {
   const url = URL.createObjectURL(image);
   try {
     const img = new Image();
     img.src = url;
     await img.decode();
     const size = scaledSize(img.naturalWidth, img.naturalHeight, max);
-    if (!size) return image;
+    if (!size && !upsideDown) return image;
+    const { width, height } = size ?? { width: img.naturalWidth, height: img.naturalHeight };
     const canvas = document.createElement('canvas');
-    canvas.width = size.width;
-    canvas.height = size.height;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d')!;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, size.width, size.height);
+    if (upsideDown) {
+      ctx.translate(width, height);
+      ctx.rotate(Math.PI);
+    }
+    ctx.drawImage(img, 0, 0, width, height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
     // Release the canvas memory now rather than at the next garbage collection (matters on iOS).
     canvas.width = canvas.height = 0;

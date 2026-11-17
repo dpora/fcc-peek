@@ -92,8 +92,13 @@ export function groupDocuments(exhibits: Exhibit[]): GroupedDocuments {
 }
 
 // Grid rows that fit in `space` px with tiles at least `minTile` tall, never more than the
-// tiles need (two per row), and at least one when there are any.
-export function gridRows(space: number, tiles: number, minTile = 120, gap = 12): number {
+// tiles need (`cols` per row), and at least one when there are any.
+export function gridRows(space: number, tiles: number, minTile = 120, gap = 12, cols = 2): number {
   if (tiles === 0) return 0;
-  return Math.max(1, Math.min(Math.ceil(tiles / 2), Math.floor((space + gap) / (minTile + gap))));
+  return Math.max(1, Math.min(Math.ceil(tiles / cols), Math.floor((space + gap) / (minTile + gap))));
+}
+
+// Grid columns for a results page `width` px wide: two on a phone, more on a wide screen.
+export function gridCols(width: number): number {
+  return width >= 1000 ? 4 : width >= 680 ? 3 : 2;
 }

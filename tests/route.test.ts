@@ -12,6 +12,10 @@ describe('parseRoute', () => {
     expect(parseRoute('#/not-found')).toEqual({ name: 'notfound' });
   });
 
+  it('parses the type-it-in page', () => {
+    expect(parseRoute('#/enter')).toEqual({ name: 'enter' });
+  });
+
   it('no longer has a confirm screen', () => {
     expect(parseRoute('#/confirm')).toEqual({ name: 'scan' });
   });
